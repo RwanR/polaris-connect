@@ -1,0 +1,40 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+     
+      - name: Setup SSH
+        run: |
+          echo "Creating ~/.ssh directory"
+          mkdir -p $HOME/.ssh
+
+          echo "Writing SSH private key"
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > $HOME/.ssh/id_rsa
+          chmod 600 $HOME/.ssh/id_rsa
+
+          echo "Adding VPS to known_hosts"
+          ssh-keyscan -p 250 ${{ secrets.VPS_HOST }} >> $HOME/.ssh/known_hosts
+
+          echo "Verifying SSH folder and key:"
+          ls -la $HOME/.ssh
+          echo "First lines of key:"
+          head -n 5 $HOME/.ssh/id_rsa
+
+      - name: Deploy to VPS
+        run: |
+          ssh -T -p 250 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+          cd ${{ secrets.VPS_PATH }}
+          git pull origin main
+          npm install
+          pm2 restart api
+          EOF
