@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BRIEF TECHNIQUE - Connecteur Polaris ERP ↔ Shopify</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        h2 {
+            color: #34495e;
+            border-bottom: 2px solid #95a5a6;
+            padding-bottom: 8px;
+            margin-top: 25px;
+        }
+        h3 {
+            color: #16a085;
+            margin-top: 20px;
+        }
+        h4 {
+            color: #27ae60;
+            margin-top: 15px;
+        }
+        h5 {
+            color: #8e44ad;
+            margin-top: 12px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 15px 0;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1);
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        td {
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #e8f4f8;
+        }
+        pre {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            padding: 15px;
+            border-left: 4px solid #28a745;
+            margin: 15px 0;
+        }
+        .warning {
+            background-color: #fff3cd;
+            padding: 15px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+        .danger {
+            background-color: #f8d7da;
+            padding: 15px;
+            border-left: 4px solid #dc3545;
+            margin: 15px 0;
+        }
+        .info {
+            background-color: #d1ecf1;
+            padding: 15px;
+            border-left: 4px solid #17a2b8;
+            margin: 15px 0;
+        }
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 5px 0;
+        }
+        strong {
+            color: #2c3e50;
+        }
+        .architecture-diagram {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border: 2px solid #dee2e6;
+            margin: 20px 0;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: pre;
+            overflow-x: auto;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        @media print {
+            body {
+                padding: 0;
+            }
+            .page-break {
+                page-break-after: always;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h1>BRIEF TECHNIQUE - Connecteur Polaris ERP ↔ Shopify</h1>
+
+<div class="success">
+    <h2>📋 RÉSUMÉ EXÉCUTIF</h2>
+    <p><strong>OUI, cette application est bien un connecteur bidirectionnel entre l'ERP Polaris et Shopify.</strong></p>
+    <p>Elle synchronise :</p>
+    <ul>
+        <li><strong>Polaris → Shopify</strong> : Produits, prix, stocks multi-magasins</li>
+        <li><strong>Shopify → Polaris</strong> : Commandes clients</li>
+    </ul>
+    <p><strong>OUI, ce code peut servir de base pour recréer un connecteur Polaris-Shopify pour votre client vendeur de chaussures.</strong></p>
+</div>
+
+<h2>🎯 OBJECTIF DE L'APPLICATION</h2>
+
+<p>Cette application nommée "Owlblack Connector ERP" est un <strong>middleware de synchronisation</strong> qui :</p>
+
+<ol>
+    <li><strong>Import des produits</strong> : Récupère les produits depuis l'API Polaris et les crée/met à jour dans Shopify</li>
+    <li><strong>Gestion des stocks multi-magasins</strong> : Synchronise les stocks disponibles pour chaque point de vente</li>
+    <li><strong>Gestion des prix</strong> : Prix TTC et prix comparatif (prix barré)</li>
+    <li><strong>Envoi des commandes</strong> : Transmet les commandes Shopify vers l'ERP Polaris en temps réel via webhooks</li>
+    <li><strong>Suppression en cascade</strong> : Gère la suppression de produits</li>
+</ol>
+
+<h2>🏗️ ARCHITECTURE GLOBALE</h2>
+
+<div class="architecture-diagram">
+┌─────────────────┐         ┌──────────────────────┐         ┌─────────────────┐
+│   ERP POLARIS   │◄────────│  CONNECTEUR NODE.JS  │────────►│    SHOPIFY      │
+│                 │  HTTPS  │                      │  GraphQL│                 │
+│  - Produits     │         │  - Express API       │         │  - Products     │
+│  - Stocks       │         │  - PostgreSQL        │         │  - Variants     │
+│  - Ventes       │         │  - Sync Scripts      │         │  - Inventory    │
+└─────────────────┘         │  - Webhooks          │         │  - Orders       │
+                            └──────────────────────┘         └─────────────────┘
+                                      │
+                                      ▼
+                            ┌──────────────────────┐
+                            │   PostgreSQL DB      │
+                            │                      │
+                            │  - products          │
+                            │  - variant_options   │
+                            │  - stock_by_store    │
+                            │  - shopify_orders    │
+                            └──────────────────────┘
+</div>
+
+<div class="page-break"></div>
+
+<h2>📂 STRUCTURE DES FICHIERS ET RESPONSABILITÉS</h2>
+
+<h3>🔹 /api - Serveur API Express</h3>
+
+<h4>/api/index.js - Point d'entrée principal</h4>
+<ul>
+    <li>Démarre le serveur Express sur le port 3000</li>
+    <li>Configure middleware (morgan pour logs, express.raw pour webhooks)</li>
+    <li>Route <code>/webhook</code> → shopifyRoutes</li>
+</ul>
+
+<h4>/api/routes/shopify.js - Routes webhooks Shopify</h4>
+<p><strong>3 endpoints principaux :</strong></p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Endpoint</th>
+            <th>Méthode</th>
+            <th>Trigger Shopify</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>/webhook/products/delete</code></td>
+            <td>POST</td>
+            <td>Product deletion</td>
+            <td>Supprime produit + variants + stocks en cascade</td>
+        </tr>
+        <tr>
+            <td><code>/webhook/orders/create</code></td>
+            <td>POST</td>
+            <td>Order created</td>
+            <td>Récupère le code magasin et envoie la commande à l'ERP</td>
+        </tr>
+        <tr>
+            <td><code>/webhook/orders/delete</code></td>
+            <td>POST</td>
+            <td>Order cancelled</td>
+            <td>Marque la commande comme supprimée en BDD</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Flux de création de commande :</strong></p>
+<ol>
+    <li>Vérifie signature HMAC Shopify</li>
+    <li>Vérifie si commande déjà envoyée (évite les doublons)</li>
+    <li>Récupère le <code>code_magasin</code> depuis les metafields de location</li>
+    <li>Transforme les données Shopify → format ERP</li>
+    <li>Envoie à l'API Polaris <code>/Ventes/Vente</code></li>
+    <li>Enregistre en BDD avec statut "Envoyé"</li>
+</ol>
+
+<h4>/api/services/erpService.js - Service d'envoi des commandes vers Polaris</h4>
+
+<p><strong>Méthode principale : <code>sendOrderToERP(codeMagasin, orderData)</code></strong></p>
+
+<p><strong>Endpoint Polaris utilisé :</strong></p>
+<pre>POST {ERP_URL}/Ventes/Vente
+Headers: X-API-Key</pre>
+
+<p><strong>Structure du payload envoyé à Polaris :</strong></p>
+<pre>{
+  RefExt: "1234",                    // Numéro commande Shopify
+  TypeVenteInternet: "Site",
+  Client: {
+    Nom: "Dupont",
+    Prenom: "Jean",
+    Telephone: { Numero: "" },
+    Mobile: { Numero: "" },
+    Adresse: {
+      Nom: "Jean Dupont",
+      Adresse1: "123 rue Example",
+      CodePostal: "75001",
+      Ville: "Paris",
+      CodePays: "FR"
+    },
+    Mail: "jean@example.com",
+    RefsExt: ["1234"]
+  },
+  CodeMagasin: "101",               // Code du magasin
+  DateVente: "2025-11-16T10:00:00Z",
+  Details: [
+    {
+      SKU: "REF-123-40",
+      Qte: 2,
+      MontantTTC: 89.90,
+      RemiseTTC: 0,
+      TypeRemise: "Normal"
+    }
+  ],
+  Reglements: [
+    {
+      Code: "CC",                   // Carte de crédit
+      Montant: 179.80
+    }
+  ]
+}</pre>
+
+<div class="page-break"></div>
+
+<h2>🗄️ SCHÉMA DE BASE DE DONNÉES PostgreSQL</h2>
+
+<h3>Table : products</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Colonne</th>
+            <th>Type</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>id</td>
+            <td>SERIAL PRIMARY KEY</td>
+            <td>ID auto-incrémenté</td>
+        </tr>
+        <tr>
+            <td>no_modele</td>
+            <td>INTEGER UNIQUE</td>
+            <td>Numéro de modèle Polaris (clé unique)</td>
+        </tr>
+        <tr>
+            <td>shopify_product_id</td>
+            <td>TEXT</td>
+            <td>ID produit Shopify (gid://shopify/Product/xxx)</td>
+        </tr>
+        <tr>
+            <td>title</td>
+            <td>TEXT</td>
+            <td>Titre du produit</td>
+        </tr>
+        <tr>
+            <td>vendor</td>
+            <td>TEXT</td>
+            <td>Marque (ex: "Nike")</td>
+        </tr>
+        <tr>
+            <td>product_type</td>
+            <td>TEXT</td>
+            <td>Type de produit (ex: "Chaussures Sport")</td>
+        </tr>
+        <tr>
+            <td>erp_last_change</td>
+            <td>TEXT</td>
+            <td>Date dernière modification ERP</td>
+        </tr>
+        <tr>
+            <td>to_send_to_shopify</td>
+            <td>BOOLEAN</td>
+            <td>Flag de synchronisation vers Shopify</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Table : variant_options</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Colonne</th>
+            <th>Type</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>id</td>
+            <td>SERIAL PRIMARY KEY</td>
+            <td>ID auto-incrémenté</td>
+        </tr>
+        <tr>
+            <td>no_modele</td>
+            <td>INTEGER</td>
+            <td>Référence au produit</td>
+        </tr>
+        <tr>
+            <td>sku</td>
+            <td>TEXT UNIQUE</td>
+            <td>SKU unique (ex: "REF-12345-40")</td>
+        </tr>
+        <tr>
+            <td>size</td>
+            <td>TEXT</td>
+            <td>Taille (ex: "40")</td>
+        </tr>
+        <tr>
+            <td>color</td>
+            <td>TEXT</td>
+            <td>Couleur (ex: "Noir")</td>
+        </tr>
+        <tr>
+            <td>price</td>
+            <td>NUMERIC(10,2)</td>
+            <td>Prix TTC</td>
+        </tr>
+        <tr>
+            <td>compare_at_price</td>
+            <td>NUMERIC(10,2)</td>
+            <td>Prix normal TTC (prix barré)</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Table : stock_by_store</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Colonne</th>
+            <th>Type</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>id</td>
+            <td>SERIAL PRIMARY KEY</td>
+            <td>ID auto-incrémenté</td>
+        </tr>
+        <tr>
+            <td>sku</td>
+            <td>TEXT</td>
+            <td>Référence au variant</td>
+        </tr>
+        <tr>
+            <td>code_magasin</td>
+            <td>INTEGER</td>
+            <td>Code du magasin Polaris</td>
+        </tr>
+        <tr>
+            <td>dispo</td>
+            <td>INTEGER</td>
+            <td>Stock disponible</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Table : shopify_orders</h3>
+<table>
+    <thead>
+        <tr>
+            <th>Colonne</th>
+            <th>Type</th>
+            <th>Description</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>order_id</td>
+            <td>BIGINT PRIMARY KEY</td>
+            <td>ID commande Shopify</td>
+        </tr>
+        <tr>
+            <td>status</td>
+            <td>TEXT</td>
+            <td>Statut ("En cours", "Envoyé", "Supprimé")</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Usage :</strong> Éviter les doublons d'envoi de commandes vers l'ERP.</p>
+
+<div class="page-break"></div>
+
+<h2>🔌 ENDPOINTS API</h2>
+
+<h3>Endpoints Polaris ERP utilisés</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Endpoint</th>
+            <th>Méthode</th>
+            <th>Usage</th>
+            <th>Fichier</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>/Catalog/Produits</code></td>
+            <td>GET</td>
+            <td>Récupération produits avec pagination</td>
+            <td>/lib/erpClient/products.js</td>
+        </tr>
+        <tr>
+            <td><code>/Ventes/Vente</code></td>
+            <td>POST</td>
+            <td>Création d'une vente (commande)</td>
+            <td>/api/services/erpService.js</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Configuration :</strong></p>
+<ul>
+    <li>Base URL : <code>process.env.ERP_URL</code></li>
+    <li>Authentification : Header <code>X-API-Key: {ERP_API_KEY}</code></li>
+    <li>HTTPS : <code>rejectUnauthorized: false</code> (certificat auto-signé accepté)</li>
+</ul>
+
+<h3>Endpoints Shopify GraphQL utilisés</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Endpoint</th>
+            <th>Type</th>
+            <th>Usage</th>
+            <th>Fichier</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>productSet</code></td>
+            <td>Mutation</td>
+            <td>Création/mise à jour produit + variants</td>
+            <td>/lib/syncLogic/products.js</td>
+        </tr>
+        <tr>
+            <td><code>locations</code></td>
+            <td>Query</td>
+            <td>Récupération locations + metafields</td>
+            <td>/lib/syncLogic/products.js</td>
+        </tr>
+        <tr>
+            <td><code>order.fulfillmentOrders</code></td>
+            <td>Query</td>
+            <td>Récupération location assignée commande</td>
+            <td>/lib/syncLogic/products.js</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>Webhooks Shopify configurés</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Topic</th>
+            <th>URL</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><code>products/delete</code></td>
+            <td>https://{VPS_URL}/webhook/products/delete</td>
+            <td>Suppression cascade</td>
+        </tr>
+        <tr>
+            <td><code>orders/create</code></td>
+            <td>https://{VPS_URL}/webhook/orders/create</td>
+            <td>Envoi commande vers ERP</td>
+        </tr>
+        <tr>
+            <td><code>orders/delete</code></td>
+            <td>https://{VPS_URL}/webhook/orders/delete</td>
+            <td>Marquage suppression</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<h2>⚙️ CONFIGURATION ET ENVIRONNEMENT</h2>
+
+<h3>Variables d'environnement requises</h3>
+
+<p>Fichiers : <code>.env.dev</code>, <code>.env.test</code>, <code>.env.prod</code></p>
+
+<pre># Polaris ERP
+ERP_URL=https://nur8.pl-vtest2-1221.polarisgestionmag.net:13543/api/WebConnect
+ERP_API_KEY=votre_api_key_polaris
+
+# Shopify
+SHOPIFY_STORE_DOMAIN=votre-store.myshopify.com
+SHOPIFY_ACCESS_TOKEN=shpat_xxxxxxxxxxxxxxxxxxxxxxxx
+SHOPIFY_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# PostgreSQL
+PGUSER=postgres
+PGHOST=localhost
+PGDATABASE=owlblack_connector
+PGPASSWORD=votre_mot_de_passe
+PGPORT=5432</pre>
+
+<h3>Scripts NPM disponibles</h3>
+
+<pre># Serveur API
+npm run prod              # Production
+npm run test              # Test
+npm run dev               # Development (nodemon)
+
+# Synchronisation produits
+npm run sync-products-prod
+npm run sync-products-test
+npm run sync-products-dev
+
+# Gestion base de données
+npm run init-db-prod      # Créer tables
+npm run update-db-prod    # Migrations
+npm run delete-all-db-prod # Supprimer tables (DANGER)</pre>
+
+<h3>Dépendances principales</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Package</th>
+            <th>Version</th>
+            <th>Usage</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>@shopify/shopify-api</td>
+            <td>^11.11.1</td>
+            <td>SDK Shopify officiel</td>
+        </tr>
+        <tr>
+            <td>axios</td>
+            <td>^1.8.4</td>
+            <td>Client HTTP pour ERP</td>
+        </tr>
+        <tr>
+            <td>express</td>
+            <td>^4.21.2</td>
+            <td>Serveur API</td>
+        </tr>
+        <tr>
+            <td>pg</td>
+            <td>^8.14.1</td>
+            <td>Driver PostgreSQL</td>
+        </tr>
+        <tr>
+            <td>dotenv</td>
+            <td>^16.4.7</td>
+            <td>Variables d'environnement</td>
+        </tr>
+        <tr>
+            <td>crypto</td>
+            <td>^1.0.1</td>
+            <td>Vérification HMAC webhooks</td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<h2>🎓 CONCEPTS CLÉS POUR SHOPIFY + CHAUSSURES</h2>
+
+<h3>Gestion des variantes chaussures</h3>
+
+<p>L'application est <strong>parfaitement adaptée aux chaussures</strong> :</p>
+
+<p><strong>Structure produit :</strong></p>
+<pre>Produit : "Nike Air Max 2024"
+├── Variante 1 : Taille 40 - Couleur Noir (SKU: NIKE-AIR-40-BLK)
+├── Variante 2 : Taille 41 - Couleur Noir (SKU: NIKE-AIR-41-BLK)
+├── Variante 3 : Taille 42 - Couleur Noir (SKU: NIKE-AIR-42-BLK)
+├── Variante 4 : Taille 40 - Couleur Blanc (SKU: NIKE-AIR-40-WHT)
+└── ...</pre>
+
+<p><strong>Mapping Polaris → Shopify :</strong></p>
+<ul>
+    <li><code>Tailles[].Taille</code> → Option "Taille"</li>
+    <li><code>Niveau1.Nom</code> → Option "Couleur"</li>
+    <li><code>Tailles[].Refs[0]</code> → SKU unique</li>
+</ul>
+
+<h3>Gestion des stocks multi-magasins</h3>
+
+<p><strong>Exemple :</strong></p>
+<pre>SKU "NIKE-AIR-40-BLK" :
+├── Magasin Paris (code 101) : 5 paires disponibles
+├── Magasin Lyon (code 102) : 3 paires disponibles
+└── Magasin Marseille (code 103) : 0 paires disponibles</pre>
+
+<p><strong>Configuration Shopify requise :</strong></p>
+<ol>
+    <li>Créer 3 locations dans Shopify (Paris, Lyon, Marseille)</li>
+    <li>Ajouter metafield <code>code_magasin</code> à chaque location :
+        <ul>
+            <li>Paris : <code>code_magasin = 101</code></li>
+            <li>Lyon : <code>code_magasin = 102</code></li>
+            <li>Marseille : <code>code_magasin = 103</code></li>
+        </ul>
+    </li>
+</ol>
+
+<h3>Gestion des prix</h3>
+
+<ul>
+    <li><strong>Prix TTC</strong> : <code>PrixTTC</code> → <code>price</code></li>
+    <li><strong>Prix barré</strong> : <code>PrixNormalTTC</code> → <code>compareAtPrice</code></li>
+    <li><strong>Promotions</strong> : Automatiquement affichées dans Shopify si <code>compareAtPrice > price</code></li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>✅ RÉPONSE AUX QUESTIONS DU CLIENT</h2>
+
+<h3>1. Est-ce bien un connecteur Polaris ↔ Shopify ?</h3>
+
+<div class="success">
+    <p><strong>OUI, absolument.</strong></p>
+    <ul>
+        <li>✅ Synchronise produits ERP Polaris → Shopify</li>
+        <li>✅ Synchronise commandes Shopify → ERP Polaris</li>
+        <li>✅ Gère stocks multi-magasins</li>
+        <li>✅ Gère prix et promotions</li>
+    </ul>
+</div>
+
+<h3>2. Puis-je m'en servir pour recréer un connecteur pour mon client vendeur de chaussures ?</h3>
+
+<div class="success">
+    <p><strong>OUI, c'est parfaitement adapté.</strong></p>
+</div>
+
+<p><strong>Fonctionnalités existantes répondant au cahier des charges :</strong></p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Besoin client</th>
+            <th>Couverture</th>
+            <th>Fichier</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>✅ Import des produits dans Shopify</td>
+            <td>100%</td>
+            <td>/lib/syncLogic/products.js</td>
+        </tr>
+        <tr>
+            <td>✅ Import des prix dans Shopify</td>
+            <td>100%</td>
+            <td>/lib/syncLogic/products.js (price + compareAtPrice)</td>
+        </tr>
+        <tr>
+            <td>✅ Sortie de stock (commandes)</td>
+            <td>100%</td>
+            <td>/api/routes/shopify.js + /api/services/erpService.js</td>
+        </tr>
+        <tr>
+            <td>❌ Retour produit</td>
+            <td>0%</td>
+            <td>À développer</td>
+        </tr>
+    </tbody>
+</table>
+
+<p><strong>Ce qui fonctionne out-of-the-box :</strong></p>
+<ul>
+    <li>✅ Gestion variantes chaussures (taille + couleur)</li>
+    <li>✅ Stocks multi-magasins</li>
+    <li>✅ Webhooks commandes temps réel</li>
+    <li>✅ Déduplication commandes</li>
+    <li>✅ Prix promotionnels</li>
+</ul>
+
+<div class="warning">
+    <p><strong>Ce qui nécessite adaptation :</strong></p>
+    <ul>
+        <li>⚠️ <strong>Retours produits</strong> : Non implémenté
+            <ul>
+                <li>Besoin d'un webhook <code>refunds/create</code> ou <code>returns/request</code></li>
+                <li>Ajouter endpoint <code>/webhook/returns/create</code></li>
+                <li>Créer méthode <code>sendReturnToERP()</code> dans <code>erpService.js</code></li>
+                <li>Mapper vers endpoint Polaris (ex: <code>/Ventes/Retour</code>)</li>
+            </ul>
+        </li>
+        <li>⚠️ <strong>Configuration spécifique client</strong> :
+            <ul>
+                <li>URL ERP Polaris du client</li>
+                <li>API Key Polaris</li>
+                <li>Credentials Shopify</li>
+                <li>Codes magasins</li>
+            </ul>
+        </li>
+    </ul>
+</div>
+
+<div class="page-break"></div>
+
+<h2>🚀 RECOMMANDATIONS POUR LE PROJET CLIENT</h2>
+
+<h3>Étapes de mise en place</h3>
+
+<h4>Phase 1 : Configuration (1-2 jours)</h4>
+<ol>
+    <li>Cloner ce repository</li>
+    <li>Configurer variables d'environnement :
+        <ul>
+            <li>URL API Polaris client</li>
+            <li>API Key Polaris</li>
+            <li>Credentials Shopify</li>
+        </ul>
+    </li>
+    <li>Configurer PostgreSQL</li>
+    <li>Initialiser BDD : <code>npm run init-db-prod</code></li>
+    <li>Déployer sur VPS</li>
+</ol>
+
+<h4>Phase 2 : Configuration Shopify (1 jour)</h4>
+<ol>
+    <li>Créer locations pour les magasins</li>
+    <li>Ajouter metafields <code>code_magasin</code> sur chaque location</li>
+    <li>Configurer webhooks :
+        <ul>
+            <li><code>orders/create</code> → <code>https://{VPS}/webhook/orders/create</code></li>
+            <li><code>products/delete</code> → <code>https://{VPS}/webhook/products/delete</code></li>
+        </ul>
+    </li>
+    <li>Générer Access Token avec scopes :
+        <ul>
+            <li><code>read_products</code>, <code>write_products</code></li>
+            <li><code>read_orders</code>, <code>write_orders</code></li>
+            <li><code>read_inventory</code>, <code>write_inventory</code></li>
+            <li><code>read_locations</code></li>
+        </ul>
+    </li>
+</ol>
+
+<h4>Phase 3 : Test synchronisation produits (2-3 jours)</h4>
+<ol>
+    <li>Lancer sync test : <code>npm run sync-products-test</code></li>
+    <li>Vérifier import en BDD</li>
+    <li>Vérifier création produits Shopify</li>
+    <li>Vérifier stocks multi-locations</li>
+    <li>Ajuster mapping si nécessaire</li>
+</ol>
+
+<h4>Phase 4 : Test commandes (2 jours)</h4>
+<ol>
+    <li>Passer commande test sur Shopify</li>
+    <li>Vérifier webhook reçu</li>
+    <li>Vérifier envoi vers Polaris</li>
+    <li>Vérifier création commande dans ERP</li>
+</ol>
+
+<h4>Phase 5 : Développement retours (3-5 jours) ⚠️ À développer</h4>
+<ol>
+    <li>Analyser documentation Polaris pour endpoint retours</li>
+    <li>Créer webhook <code>refunds/create</code></li>
+    <li>Développer <code>sendRefundToERP()</code></li>
+    <li>Tester flux retour</li>
+</ol>
+
+<h4>Phase 6 : Mise en production (1 jour)</h4>
+<ol>
+    <li>Configuration SSL/HTTPS sur VPS</li>
+    <li>Configuration PM2</li>
+    <li>Tests charge</li>
+    <li>Go live</li>
+</ol>
+
+<p><strong>Durée totale estimée : 10-15 jours de développement</strong></p>
+
+<h3>Estimation budgétaire</h3>
+
+<table>
+    <thead>
+        <tr>
+            <th>Poste</th>
+            <th>Détail</th>
+            <th>Durée/Coût</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td><strong>Développement</strong></td>
+            <td>Configuration + déploiement</td>
+            <td>2-3 jours</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>Tests + ajustements</td>
+            <td>3-4 jours</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>Développement retours</td>
+            <td>3-5 jours</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><strong>TOTAL</strong></td>
+            <td><strong>8-12 jours</strong></td>
+        </tr>
+        <tr>
+            <td><strong>Infrastructure mensuelle</strong></td>
+            <td>VPS (2 CPU, 4GB RAM)</td>
+            <td>20-40€/mois</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>PostgreSQL</td>
+            <td>Inclus dans VPS</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>Shopify</td>
+            <td>Plan client existant</td>
+        </tr>
+        <tr>
+            <td></td>
+            <td><strong>TOTAL</strong></td>
+            <td><strong>20-40€/mois</strong></td>
+        </tr>
+    </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<h2>🔍 CONCLUSION</h2>
+
+<div class="info">
+    <p><strong>Ce connecteur est un excellent point de départ</strong> pour le projet client vendeur de chaussures.</p>
+
+    <p><strong>Couverture du cahier des charges :</strong></p>
+    <ul>
+        <li>✅ Import produits : 100%</li>
+        <li>✅ Import prix : 100%</li>
+        <li>✅ Sortie de stock (commandes) : 100%</li>
+        <li>❌ Retours produits : 0% (à développer)</li>
+    </ul>
+
+    <p><strong>Réutilisabilité : 80-90%</strong></p>
+
+    <p>Le code nécessite principalement :</p>
+    <ol>
+        <li>Configuration des credentials</li>
+        <li>Développement du module retours</li>
+        <li>Tests avec les données client</li>
+        <li>Déploiement sur VPS</li>
+    </ol>
+
+    <p><strong>Gain de temps estimé : 70-80%</strong> par rapport à un développement from scratch.</p>
+</div>
+
+<h2>📊 MÉTRIQUES DE QUALITÉ DU CODE</h2>
+
+<div class="success">
+    <p><strong>Points forts :</strong></p>
+    <ul>
+        <li>✅ Architecture claire et modulaire</li>
+        <li>✅ Séparation responsabilités (API / Sync / DB)</li>
+        <li>✅ Gestion transactions SQL</li>
+        <li>✅ Déduplication commandes</li>
+        <li>✅ Throttling API géré</li>
+        <li>✅ Détection changements produits</li>
+        <li>✅ CI/CD automatisé</li>
+    </ul>
+</div>
+
+<div class="warning">
+    <p><strong>Points d'amélioration :</strong></p>
+    <ul>
+        <li>⚠️ Pas de gestion d'erreurs centralisée</li>
+        <li>⚠️ Logs basiques (console.log)</li>
+        <li>⚠️ Pas de tests unitaires</li>
+        <li>⚠️ Pas de monitoring/alerting</li>
+        <li>⚠️ Retours non implémentés</li>
+        <li>⚠️ Synchronisation clients non implémentée</li>
+    </ul>
+</div>
+
+</body>
+</html>
